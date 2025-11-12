@@ -16,6 +16,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 from ads_agent import analyze_account
+from config_manager import load_settings, save_settings
 
 SCOPES = ["https://www.googleapis.com/auth/adwords"]
 TOKEN_PATH = Path("token.json")
@@ -35,13 +36,17 @@ class GoogleAdsApp(tk.Tk):
         self.style.configure("Header.TLabel", font=("Segoe UI", 16, "bold"))
         self.style.configure("Subheading.TLabel", font=("Segoe UI", 11, "bold"))
 
-        self.client_secret_var = tk.StringVar(value="client_secret.json")
-        self.developer_token_var = tk.StringVar()
-        self.login_customer_var = tk.StringVar()
-        self.customer_id_var = tk.StringVar(value="488-455-0863")
-        self.lookback_var = tk.IntVar(value=7)
-        self.first_hour_clicks_var = tk.IntVar(value=50)
-        self.spike_ratio_var = tk.DoubleVar(value=2.5)
+        self.settings = load_settings()
+
+        self.client_secret_var = tk.StringVar(value=self.settings.get("client_secret_path"))
+        self.developer_token_var = tk.StringVar(value=self.settings.get("developer_token"))
+        self.login_customer_var = tk.StringVar(value=self.settings.get("login_customer_id"))
+        self.customer_id_var = tk.StringVar(value=self.settings.get("customer_id"))
+        self.lookback_var = tk.IntVar(value=int(self.settings.get("lookback_days", 7)))
+        self.first_hour_clicks_var = tk.IntVar(
+            value=int(self.settings.get("min_first_hour_clicks", 50))
+        )
+        self.spike_ratio_var = tk.DoubleVar(value=float(self.settings.get("spike_ratio", 2.5)))
         self.status_var = tk.StringVar(value="Waiting for sign-in.")
         self.hourly_insight_var = tk.StringVar(
             value="Run analysis to view hourly spike diagnostics."
@@ -126,6 +131,9 @@ class GoogleAdsApp(tk.Tk):
         button_frame = ttk.Frame(parent)
         button_frame.grid(row=4, column=2, rowspan=2, **grid_opts)
 
+        self.save_btn = ttk.Button(button_frame, text="Save Settings", command=self._save_settings)
+        self.save_btn.pack(fill="x", pady=(0, 6))
+
         self.sign_in_btn = ttk.Button(button_frame, text="Sign in with Google", command=self.start_oauth)
         self.sign_in_btn.pack(fill="x", pady=(0, 6))
         self.run_btn = ttk.Button(
@@ -182,6 +190,7 @@ class GoogleAdsApp(tk.Tk):
         )
         if path:
             self.client_secret_var.set(path)
+            self._save_settings()
 
     def _load_cached_credentials(self) -> None:
         if not TOKEN_PATH.exists():
@@ -245,6 +254,7 @@ class GoogleAdsApp(tk.Tk):
             messagebox.showwarning("Customer ID required", "Enter a customer ID to analyze.")
             return
 
+        self._save_settings()
         self.run_btn.configure(state="disabled")
         self._set_status("Running analysis…")
 
@@ -415,6 +425,26 @@ class GoogleAdsApp(tk.Tk):
         self.log_text.insert(tk.END, f"[{datetime.utcnow()}] {message}\n")
         self.log_text.see(tk.END)
         self.log_text.configure(state="disabled")
+
+    def _gather_settings(self) -> dict:
+        return {
+            "client_secret_path": self.client_secret_var.get().strip() or "client_secret.json",
+            "developer_token": self.developer_token_var.get().strip(),
+            "login_customer_id": self.login_customer_var.get().strip(),
+            "customer_id": self.customer_id_var.get().strip(),
+            "lookback_days": int(self.lookback_var.get()),
+            "min_first_hour_clicks": int(self.first_hour_clicks_var.get()),
+            "spike_ratio": float(self.spike_ratio_var.get()),
+        }
+
+    def _save_settings(self) -> None:
+        try:
+            data = self._gather_settings()
+            save_settings(data)
+            self.settings = data
+            self._set_status("Settings saved.")
+        except Exception as exc:  # noqa: BLE001
+            self._log(f"Failed to save settings: {exc}")
 
 
 def main() -> None:

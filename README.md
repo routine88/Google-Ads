@@ -59,7 +59,7 @@ The first run may take a moment while the virtual environment is created and dep
 ## 4. Credentials & Security
 
 - OAuth tokens live in `token.json` (ignored by git). Delete it anytime to force a new sign-in.
-- Developer tokens and customer IDs stay in-memory; nothing is written to disk except the OAuth token.
+- Field inputs (developer token, client secret path, login/customer IDs, thresholds) now save to `settings.json` when you hit **Save Settings** or run an analysis. Edit them anytime in the GUI; delete the file to reset.
 - If you prefer a different OAuth file name, use the **Browse…** button in the GUI.
 
 ---

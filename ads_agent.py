@@ -222,24 +222,32 @@ def analyze_search_terms(df_st: pd.DataFrame) -> Dict:
             df_st[col] = pd.to_numeric(df_st[col], errors="coerce")
 
     df_st["cost"] = df_st["metrics.cost_micros"].apply(micros_to_currency)
-    losers = df_st[
+    df_st["candidate_flag"] = (
         (df_st["metrics.clicks"] >= 20)
         & (df_st["metrics.conversions"] == 0)
         & (df_st["cost"] >= 10.0)
-    ].copy()
-    losers = losers.sort_values("cost", ascending=False).head(25)
+    )
+
+    top_rows = df_st.sort_values("cost", ascending=False).head(25)
 
     recs = []
-    for _, row in losers.iterrows():
+    for _, row in top_rows.iterrows():
+        clicks = int(row.get("metrics.clicks", 0) or 0)
+        conversions = int(row.get("metrics.conversions", 0) or 0)
+        if bool(row.get("candidate_flag")):
+            reason = "High spend/clicks with zero conversions — consider adding as a negative keyword."
+        else:
+            reason = f"Top query (clicks: {clicks}, conv: {conversions}). Review before adding as negative."
         recs.append(
             {
                 "search_term": row.get("search_term_view.search_term"),
                 "campaign": row.get("campaign.name"),
-                "reason": "High spend/clicks with zero conversions — consider adding as a negative keyword.",
+                "reason": reason,
                 "est_cost": float(row.get("cost", 0.0)),
             }
         )
-    return {"negatives": recs}
+    flagged = int(top_rows["candidate_flag"].sum()) if "candidate_flag" in top_rows.columns else 0
+    return {"negatives": recs, "flagged": flagged}
 
 
 def analyze_placements(df_pl: pd.DataFrame) -> Dict:
@@ -256,27 +264,34 @@ def analyze_placements(df_pl: pd.DataFrame) -> Dict:
             df_pl[col] = pd.to_numeric(df_pl[col], errors="coerce")
 
     df_pl["cost"] = df_pl["metrics.cost_micros"].apply(micros_to_currency)
-    losers = df_pl[
+    df_pl["candidate_flag"] = (
         (df_pl["metrics.clicks"] >= 15)
         & (df_pl["metrics.conversions"] == 0)
         & (df_pl["cost"] >= 8.0)
-    ].copy()
-    losers = losers.sort_values("cost", ascending=False).head(25)
+    )
+    top_rows = df_pl.sort_values("cost", ascending=False).head(25)
 
     recs = []
-    for _, row in losers.iterrows():
+    for _, row in top_rows.iterrows():
         placement = row.get("detail_placement_view.group_placement_target_url") or row.get(
             "detail_placement_view.display_name"
         )
+        clicks = int(row.get("metrics.clicks", 0) or 0)
+        conversions = int(row.get("metrics.conversions", 0) or 0)
+        if bool(row.get("candidate_flag")):
+            reason = "High spend/clicks with zero conversions — consider excluding this placement."
+        else:
+            reason = f"Top placement (clicks: {clicks}, conv: {conversions}). Monitor before excluding."
         recs.append(
             {
                 "placement": placement,
                 "campaign": row.get("campaign.name"),
-                "reason": "High spend/clicks with zero conversions — consider excluding this placement.",
+                "reason": reason,
                 "est_cost": float(row.get("cost", 0.0)),
             }
         )
-    return {"exclusions": recs}
+    flagged = int(top_rows["candidate_flag"].sum()) if "candidate_flag" in top_rows.columns else 0
+    return {"exclusions": recs, "flagged": flagged}
 
 
 def prepare_campaign_summary(df_c: pd.DataFrame) -> pd.DataFrame:

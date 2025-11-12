@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
+import json
 import threading
 import tkinter as tk
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
@@ -279,9 +280,10 @@ class GoogleAdsApp(tk.Tk):
                 self.after(0, lambda: self._log("Analysis completed successfully."))
                 self.after(0, lambda: self._set_status("Analysis ready."))
             except Exception as exc:  # noqa: BLE001
-                self.after(0, lambda: self._log(f"Analysis failed: {exc}"))
+                message = str(exc)
+                self.after(0, lambda msg=message: self._log(f"Analysis failed: {msg}"))
                 self.after(0, lambda: self._set_status("Analysis failed."))
-                self.after(0, lambda: messagebox.showerror("Analysis error", str(exc)))
+                self.after(0, lambda msg=message: messagebox.showerror("Analysis error", msg))
             finally:
                 self.after(0, lambda: self.run_btn.configure(state="normal"))
 
@@ -293,14 +295,23 @@ class GoogleAdsApp(tk.Tk):
         if self.credentials.expired and self.credentials.refresh_token:
             self._refresh_credentials(self.credentials)
         developer_token = self.developer_token_var.get().strip()
+        if not developer_token:
+            raise ValueError("Developer token is missing.")
         login_id = self.login_customer_var.get().replace("-", "").strip() or None
+        refresh_token = getattr(self.credentials, "refresh_token", None)
+        if not refresh_token:
+            raise ValueError("OAuth refresh token missing; please re-authenticate.")
+        client_id, client_secret = self._get_oauth_client_details()
         config = {
             "developer_token": developer_token,
+            "refresh_token": refresh_token,
+            "client_id": client_id,
+            "client_secret": client_secret,
             "use_proto_plus": True,
         }
         if login_id:
             config["login_customer_id"] = login_id
-        return GoogleAdsClient.load_from_dict(config, credentials=self.credentials)
+        return GoogleAdsClient.load_from_dict(config)
 
     def _render_results(
         self,
@@ -422,7 +433,7 @@ class GoogleAdsApp(tk.Tk):
 
     def _log(self, message: str) -> None:
         self.log_text.configure(state="normal")
-        self.log_text.insert(tk.END, f"[{datetime.utcnow()}] {message}\n")
+        self.log_text.insert(tk.END, f"[{datetime.now(timezone.utc)}] {message}\n")
         self.log_text.see(tk.END)
         self.log_text.configure(state="disabled")
 
@@ -445,6 +456,22 @@ class GoogleAdsApp(tk.Tk):
             self._set_status("Settings saved.")
         except Exception as exc:  # noqa: BLE001
             self._log(f"Failed to save settings: {exc}")
+
+    def _get_oauth_client_details(self) -> tuple[str, str]:
+        path = Path(self.client_secret_var.get()).expanduser()
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Client secret file not found at {path}. Please select the correct JSON."
+            )
+        data = json.loads(path.read_text())
+        info = data.get("installed") or data.get("web")
+        if not info:
+            raise ValueError("Invalid OAuth client JSON; missing 'installed' section.")
+        client_id = info.get("client_id")
+        client_secret = info.get("client_secret")
+        if not client_id or not client_secret:
+            raise ValueError("OAuth client JSON must include client_id and client_secret.")
+        return client_id, client_secret
 
 
 def main() -> None:

@@ -237,9 +237,10 @@ class GoogleAdsApp(tk.Tk):
                 self.after(0, lambda: self._log("OAuth flow completed."))
                 self.after(0, lambda: self.run_btn.configure(state="normal"))
             except Exception as exc:  # noqa: BLE001
+                message = str(exc)
                 self.after(0, lambda: self._set_status("OAuth failed."))
-                self.after(0, lambda: messagebox.showerror("OAuth failed", str(exc)))
-                self.after(0, lambda: self._log(f"OAuth error: {exc}"))
+                self.after(0, lambda msg=message: self._show_error_dialog("OAuth failed", msg))
+                self.after(0, lambda msg=message: self._log(f"OAuth error: {msg}"))
 
         threading.Thread(target=_oauth_flow, daemon=True).start()
 
@@ -283,7 +284,7 @@ class GoogleAdsApp(tk.Tk):
                 message = str(exc)
                 self.after(0, lambda msg=message: self._log(f"Analysis failed: {msg}"))
                 self.after(0, lambda: self._set_status("Analysis failed."))
-                self.after(0, lambda msg=message: messagebox.showerror("Analysis error", msg))
+                self.after(0, lambda msg=message: self._show_error_dialog("Analysis error", msg))
             finally:
                 self.after(0, lambda: self.run_btn.configure(state="normal"))
 
@@ -472,6 +473,42 @@ class GoogleAdsApp(tk.Tk):
         if not client_id or not client_secret:
             raise ValueError("OAuth client JSON must include client_id and client_secret.")
         return client_id, client_secret
+
+    def _show_error_dialog(self, title: str, message: str) -> None:
+        if not self.winfo_exists():
+            return
+        dialog = tk.Toplevel(self)
+        dialog.title(title)
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.geometry("520x260")
+        dialog.minsize(420, 220)
+
+        ttk.Label(dialog, text=title, style="Header.TLabel").pack(anchor="w", padx=12, pady=(12, 6))
+        text = tk.Text(dialog, wrap="word", height=8, relief="solid", borderwidth=1)
+        text.pack(fill="both", expand=True, padx=12, pady=(0, 6))
+        text.insert("1.0", message)
+        text.focus_set()
+
+        def block_edit(event):  # pragma: no cover - UI only
+            return "break"
+
+        text.bind("<Key>", block_edit)
+        text.bind("<<Paste>>", block_edit)
+
+        button_frame = ttk.Frame(dialog)
+        button_frame.pack(fill="x", padx=12, pady=(0, 12))
+
+        def copy_to_clipboard() -> None:
+            self.clipboard_clear()
+            self.clipboard_append(message)
+
+        ttk.Button(button_frame, text="Copy error", command=copy_to_clipboard).pack(
+            side="left", padx=(0, 6)
+        )
+        ttk.Button(button_frame, text="Close", command=dialog.destroy).pack(side="right")
+
+        dialog.lift()
 
 
 def main() -> None:

@@ -41,7 +41,7 @@ SELECT
   campaign.id,
   campaign.name,
   ad_group.id,
-  segments.search_term,
+  search_term_view.search_term,
   metrics.clicks,
   metrics.impressions,
   metrics.ctr,
@@ -233,7 +233,7 @@ def analyze_search_terms(df_st: pd.DataFrame) -> Dict:
     for _, row in losers.iterrows():
         recs.append(
             {
-                "search_term": row.get("segments.search_term"),
+                "search_term": row.get("search_term_view.search_term"),
                 "campaign": row.get("campaign.name"),
                 "reason": "High spend/clicks with zero conversions — consider adding as a negative keyword.",
                 "est_cost": float(row.get("cost", 0.0)),

@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+token.json
+client_secret.json
+google-ads.yaml
+.DS_Store

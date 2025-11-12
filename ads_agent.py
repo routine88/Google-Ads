@@ -46,7 +46,6 @@ SELECT
   metrics.impressions,
   metrics.ctr,
   metrics.conversions,
-  metrics.conversion_rate,
   metrics.cost_micros
 FROM search_term_view
 WHERE segments.date BETWEEN '{start}' AND '{end}'

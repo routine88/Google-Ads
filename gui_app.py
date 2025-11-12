@@ -263,7 +263,7 @@ class GoogleAdsApp(tk.Tk):
             try:
                 client = self._build_client()
                 lookback = max(1, int(self.lookback_var.get()))
-                end_date = datetime.utcnow().date()
+                end_date = datetime.now(timezone.utc).date()
                 start_date = end_date - timedelta(days=lookback)
                 result = analyze_account(
                     client,
